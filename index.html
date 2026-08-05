@@ -35,9 +35,15 @@
   .flag{padding:2px 8px;border-radius:6px;font-size:11px;font-weight:600;}
   .flag-warn{background:var(--warn-bg);color:var(--warn);}
   .flag-ok{background:var(--ok-bg);color:var(--ok);}
-  .stock-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
-  .stock-item{background:var(--card2);border-radius:8px;padding:8px 10px;font-size:13px;display:flex;justify-content:space-between;align-items:center;}
-  .stock-item.low{border:1px solid var(--danger);}
+  .stock-grid{display:flex;flex-direction:column;gap:6px;}
+  .stock-row{background:var(--card2);border-radius:8px;padding:8px 10px;font-size:13px;border:1px solid transparent;}
+  .stock-row.stock-agotado{border-color:var(--danger);background:var(--danger-bg);}
+  .stock-row.stock-sin-fisico{border-color:var(--warn);background:var(--warn-bg);}
+  .stock-row.stock-ultima-unidad{border-color:var(--danger);background:var(--danger-bg);}
+  .stock-num-alerta{color:var(--danger);font-weight:700;}
+  .stock-title{font-weight:600;}
+  .stock-tamano{font-weight:400;color:var(--text2);font-size:12px;}
+  .stock-nums{display:flex;justify-content:space-between;flex-wrap:wrap;gap:4px 12px;color:var(--text2);font-size:12px;margin-top:2px;}
   .sale-item{border-bottom:1px solid var(--border);padding:10px 0;font-size:13px;}
   .sale-item:last-child{border-bottom:none;}
   .sale-top{display:flex;justify-content:space-between;font-weight:600;}
@@ -104,12 +110,12 @@
 
   <div class="row">
     <div class="field">
-      <label>Obra</label>
-      <select id="obra"></select>
+      <label>Tamaño</label>
+      <select id="tamano"></select>
     </div>
     <div class="field">
-      <label>Tamaño</label>
-      <input id="tamanoDisplay" disabled placeholder="—">
+      <label>Obra</label>
+      <select id="obra"></select>
     </div>
   </div>
 
@@ -163,6 +169,10 @@
 
 <div class="card">
   <div class="section-title">Stock en vivo</div>
+  <div class="field" style="margin-bottom:10px;">
+    <label>Filtrar por tamaño</label>
+    <select id="filtroStockTamano"></select>
+  </div>
   <div class="stock-grid" id="stockGrid"></div>
 </div>
 
@@ -326,44 +336,44 @@ async function sincronizarPendientes(){
 
 const CATALOGO = {
   obras: [
-    { titulo: "La Luna", tamano: "100x150", precio: 3000000, stock: 1, ubicacion: "18" },
-    { titulo: "Laguna y Trífida", tamano: "60x40", precio: 600000, stock: 1, ubicacion: "1" },
-    { titulo: "Corona Australis", tamano: "60x40", precio: 600000, stock: 1, ubicacion: "2" },
-    { titulo: "Cabeza de Caballo", tamano: "60x40", precio: 600000, stock: 1, ubicacion: "3" },
-    { titulo: "Lambda Centauri", tamano: "60x40", precio: 600000, stock: 1, ubicacion: "4" },
-    { titulo: "Rho Ofiuco", tamano: "60x40", precio: 600000, stock: 1, ubicacion: "5" },
-    { titulo: "Gabriela Mistral", tamano: "60x40", precio: 600000, stock: 1, ubicacion: "6" },
-    { titulo: "Creciente", tamano: "20x20", precio: 70000, stock: 8, ubicacion: "7" },
-    { titulo: "Cuarto Creciente", tamano: "20x20", precio: 70000, stock: 8, ubicacion: "8" },
-    { titulo: "Creciente Gibosa", tamano: "20x20", precio: 70000, stock: 8, ubicacion: "9" },
-    { titulo: "Llena", tamano: "20x20", precio: 70000, stock: 15, ubicacion: "10" },
-    { titulo: "Menguante Gibosa", tamano: "20x20", precio: 70000, stock: 8, ubicacion: "11" },
-    { titulo: "Cuarto Menguante", tamano: "20x20", precio: 70000, stock: 8, ubicacion: "12" },
-    { titulo: "Menguante", tamano: "20x20", precio: 70000, stock: 8, ubicacion: "13" },
-    { titulo: "Carina", tamano: "60x90", precio: 1000000, stock: 1, ubicacion: "14" },
-    { titulo: "Pléyades", tamano: "60x90", precio: 1000000, stock: 1, ubicacion: "15" },
-    { titulo: "Nebulosa Roseta", tamano: "60x90", precio: 1000000, stock: 1, ubicacion: "16" },
-    { titulo: "Fases lunares (panorámico)", tamano: "100x30", precio: 750000, stock: 1, ubicacion: "17" },
-    { titulo: "Cabeza de Delfín", tamano: "30x30", precio: 120000, stock: 3, ubicacion: "19" },
-    { titulo: "Helix", tamano: "30x30", precio: 120000, stock: 3, ubicacion: "20" },
-    { titulo: "Pilares de la Creación", tamano: "30x30", precio: 120000, stock: 3, ubicacion: "21" },
-    { titulo: "Trífida", tamano: "30x30", precio: 120000, stock: 3, ubicacion: "22" },
-    { titulo: "Estatua de la Libertad", tamano: "30x30", precio: 120000, stock: 3, ubicacion: "23" },
-    { titulo: "EMC", tamano: "30x30", precio: 120000, stock: 3, ubicacion: "24" },
-    { titulo: "Sol", tamano: "30x30", precio: 120000, stock: 5, ubicacion: "25" },
-    { titulo: "Luna Llena", tamano: "30x30", precio: 120000, stock: 5, ubicacion: "26" },
-    { titulo: "Galaxia del Escultor", tamano: "30x30", precio: 120000, stock: 3, ubicacion: "27" },
-    { titulo: "Casco de Thor", tamano: "30x30", precio: 120000, stock: 3, ubicacion: "28" },
-    { titulo: "Cabeza de Caballo Azul", tamano: "20x30", precio: 100000, stock: 3, ubicacion: "Revistero" },
-    { titulo: "NGC 6729", tamano: "20x30", precio: 100000, stock: 3, ubicacion: "Revistero" },
-    { titulo: "Huella de Gato", tamano: "20x30", precio: 100000, stock: 3, ubicacion: "Revistero" },
-    { titulo: "Nebulosa de la Gamba", tamano: "20x30", precio: 100000, stock: 3, ubicacion: "Revistero" },
-    { titulo: "Nebulosa del Cisne", tamano: "20x30", precio: 100000, stock: 3, ubicacion: "Revistero" },
-    { titulo: "Orión", tamano: "20x30", precio: 100000, stock: 3, ubicacion: "Revistero" },
-    { titulo: "Renacuajos del Sur", tamano: "20x30", precio: 100000, stock: 3, ubicacion: "Revistero" },
-    { titulo: "Tarántula", tamano: "20x30", precio: 100000, stock: 3, ubicacion: "Revistero" },
-    { titulo: "Camaleón 1", tamano: "20x30", precio: 100000, stock: 3, ubicacion: "Revistero" },
-    { titulo: "Camaleón 2", tamano: "20x30", precio: 100000, stock: 3, ubicacion: "Revistero" },
+    { titulo: "La Luna", tamano: "100x150", precio: 3000000, stock: 1, ediciones: 7, ubicacion: "18" },
+    { titulo: "Laguna y Trífida", tamano: "60x40", precio: 600000, stock: 1, ediciones: 10, ubicacion: "1" },
+    { titulo: "Corona Australis", tamano: "60x40", precio: 600000, stock: 1, ediciones: 10, ubicacion: "2" },
+    { titulo: "Cabeza de Caballo", tamano: "60x40", precio: 600000, stock: 1, ediciones: 10, ubicacion: "3" },
+    { titulo: "Lambda Centauri", tamano: "60x40", precio: 600000, stock: 1, ediciones: 10, ubicacion: "4" },
+    { titulo: "Rho Ofiuco", tamano: "60x40", precio: 600000, stock: 1, ediciones: 10, ubicacion: "5" },
+    { titulo: "Gabriela Mistral", tamano: "60x40", precio: 600000, stock: 1, ediciones: 10, ubicacion: "6" },
+    { titulo: "Creciente", tamano: "20x20", precio: 70000, stock: 8, ediciones: 20, ubicacion: "7" },
+    { titulo: "Cuarto Creciente", tamano: "20x20", precio: 70000, stock: 8, ediciones: 20, ubicacion: "8" },
+    { titulo: "Creciente Gibosa", tamano: "20x20", precio: 70000, stock: 8, ediciones: 20, ubicacion: "9" },
+    { titulo: "Llena", tamano: "20x20", precio: 70000, stock: 15, ediciones: 20, ubicacion: "10" },
+    { titulo: "Menguante Gibosa", tamano: "20x20", precio: 70000, stock: 8, ediciones: 20, ubicacion: "11" },
+    { titulo: "Cuarto Menguante", tamano: "20x20", precio: 70000, stock: 8, ediciones: 20, ubicacion: "12" },
+    { titulo: "Menguante", tamano: "20x20", precio: 70000, stock: 8, ediciones: 20, ubicacion: "13" },
+    { titulo: "Carina", tamano: "60x90", precio: 1000000, stock: 1, ediciones: 10, ubicacion: "14" },
+    { titulo: "Pléyades", tamano: "60x90", precio: 1000000, stock: 1, ediciones: 10, ubicacion: "15" },
+    { titulo: "Nebulosa Roseta", tamano: "60x90", precio: 1000000, stock: 1, ediciones: 10, ubicacion: "16" },
+    { titulo: "Fases lunares (panorámico)", tamano: "100x30", precio: 750000, stock: 1, ediciones: 15, ubicacion: "17" },
+    { titulo: "Cabeza de Delfín", tamano: "30x30", precio: 120000, stock: 3, ediciones: 10, ubicacion: "19" },
+    { titulo: "Helix", tamano: "30x30", precio: 120000, stock: 3, ediciones: 10, ubicacion: "20" },
+    { titulo: "Pilares de la Creación", tamano: "30x30", precio: 120000, stock: 3, ediciones: 10, ubicacion: "21" },
+    { titulo: "Trífida", tamano: "30x30", precio: 120000, stock: 3, ediciones: 10, ubicacion: "22" },
+    { titulo: "Estatua de la Libertad", tamano: "30x30", precio: 120000, stock: 3, ediciones: 10, ubicacion: "23" },
+    { titulo: "EMC", tamano: "30x30", precio: 120000, stock: 3, ediciones: 10, ubicacion: "24" },
+    { titulo: "Sol", tamano: "30x30", precio: 120000, stock: 5, ediciones: 10, ubicacion: "25" },
+    { titulo: "Luna Llena", tamano: "30x30", precio: 120000, stock: 5, ediciones: 10, ubicacion: "26" },
+    { titulo: "Galaxia del Escultor", tamano: "30x30", precio: 120000, stock: 3, ediciones: 10, ubicacion: "27" },
+    { titulo: "Casco de Thor", tamano: "30x30", precio: 120000, stock: 3, ediciones: 10, ubicacion: "28" },
+    { titulo: "Cabeza de Caballo Azul", tamano: "20x30", precio: 100000, stock: 3, ediciones: 10, ubicacion: "Revistero" },
+    { titulo: "NGC 6729", tamano: "20x30", precio: 100000, stock: 3, ediciones: 10, ubicacion: "Revistero" },
+    { titulo: "Huella de Gato", tamano: "20x30", precio: 100000, stock: 3, ediciones: 10, ubicacion: "Revistero" },
+    { titulo: "Nebulosa de la Gamba", tamano: "20x30", precio: 100000, stock: 3, ediciones: 10, ubicacion: "Revistero" },
+    { titulo: "Nebulosa del Cisne", tamano: "20x30", precio: 100000, stock: 3, ediciones: 10, ubicacion: "Revistero" },
+    { titulo: "Orión", tamano: "20x30", precio: 100000, stock: 3, ediciones: 10, ubicacion: "Revistero" },
+    { titulo: "Renacuajos del Sur", tamano: "20x30", precio: 100000, stock: 3, ediciones: 10, ubicacion: "Revistero" },
+    { titulo: "Tarántula", tamano: "20x30", precio: 100000, stock: 3, ediciones: 10, ubicacion: "Revistero" },
+    { titulo: "Camaleón 1", tamano: "20x30", precio: 100000, stock: 3, ediciones: 10, ubicacion: "Revistero" },
+    { titulo: "Camaleón 2", tamano: "20x30", precio: 100000, stock: 3, ediciones: 10, ubicacion: "Revistero" },
   ],
 };
 function catalogoPorTitulo(titulo){ return CATALOGO.obras.find(o => o.titulo === titulo); }
@@ -392,14 +402,36 @@ function toggleModoPrueba(checked){
 
 function fmtARS(n){ return "$" + Math.round(n).toLocaleString("es-AR"); }
 
+function tamanosUnicos(){
+  const orden = ["20x20", "20x30", "30x30", "100x30", "60x40", "60x90", "100x150"];
+  const presentes = [...new Set(CATALOGO.obras.map(o => o.tamano))];
+  return orden.filter(t => presentes.includes(t)).concat(presentes.filter(t => !orden.includes(t)));
+}
+
 function populateSelects(){
+  const tSel = document.getElementById("tamano");
+  tamanosUnicos().forEach(t=>{
+    const opt = document.createElement("option");
+    opt.value = t; opt.textContent = t;
+    tSel.appendChild(opt);
+  });
+  populateObrasPorTamano(tSel.value);
+}
+
+function populateObrasPorTamano(tamano){
   const oSel = document.getElementById("obra");
-  CATALOGO.obras.forEach(o=>{
+  const seleccionActual = oSel.value;
+  oSel.innerHTML = "";
+  CATALOGO.obras.filter(o => o.tamano === tamano).forEach(o=>{
     const opt = document.createElement("option");
     opt.value = o.titulo;
-    opt.textContent = `${o.titulo} (${o.tamano})`;
+    opt.textContent = o.titulo;
     oSel.appendChild(opt);
   });
+  // Si la obra que estaba elegida sigue existiendo en el nuevo tamaño, la mantenemos
+  if([...oSel.options].some(o => o.value === seleccionActual)){
+    oSel.value = seleccionActual;
+  }
 }
 
 function updatePriceHint(){
@@ -407,9 +439,7 @@ function updatePriceHint(){
   const cat = catalogoPorTitulo(titulo);
   const hint = document.getElementById("priceHint");
   const finalInput = document.getElementById("precioFinal");
-  const tamanoDisplay = document.getElementById("tamanoDisplay");
-  if(!cat){ hint.textContent = ""; tamanoDisplay.value = ""; return; }
-  tamanoDisplay.value = cat.tamano;
+  if(!cat){ hint.textContent = ""; return; }
   hint.textContent = "Precio de lista: " + fmtARS(cat.precio) + " · Ubicación: " + cat.ubicacion;
   if(!finalInput.value){ finalInput.value = cat.precio; }
 }
@@ -440,22 +470,61 @@ function saveVentas(){
   }
 }
 
+const ESTADO_ENTREGA_INMEDIATA = "Entregado en el momento";
+
 function vendidosPorObra(titulo){
   return ventas.filter(v => v.obra === titulo && !v.prueba).length;
 }
 
+function entregadosInmediatoPorObra(titulo){
+  return ventas.filter(v => v.obra === titulo && !v.prueba && v.estado === ESTADO_ENTREGA_INMEDIATA).length;
+}
+
+const TAMANOS_TOMA_DIRECTA = ["20x20", "20x30", "30x30"];
+
+function poblarFiltroStock(){
+  const sel = document.getElementById("filtroStockTamano");
+  const optTodos = document.createElement("option");
+  optTodos.value = "TODOS"; optTodos.textContent = "Ver todos";
+  sel.appendChild(optTodos);
+  tamanosUnicos().forEach(t=>{
+    const opt = document.createElement("option");
+    opt.value = t; opt.textContent = t;
+    sel.appendChild(opt);
+  });
+}
+
 function renderStock(){
   const grid = document.getElementById("stockGrid");
+  const filtro = document.getElementById("filtroStockTamano").value || "TODOS";
   grid.innerHTML = "";
-  CATALOGO.obras.forEach(cat=>{
-    const vendidos = vendidosPorObra(cat.titulo);
-    const restante = cat.stock - vendidos;
-    const low = restante <= 0;
-    const div = document.createElement("div");
-    div.className = "stock-item" + (low ? " low" : "");
-    div.innerHTML = "<span>" + cat.titulo + " (" + cat.tamano + ")</span><span>" + restante + (low ? " ⚠" : "") + "</span>";
-    grid.appendChild(div);
-  });
+  CATALOGO.obras
+    .filter(cat => filtro === "TODOS" || cat.tamano === filtro)
+    .forEach(cat=>{
+      const vendidos = vendidosPorObra(cat.titulo);
+      const edicionRestante = cat.ediciones - vendidos;
+      const entregados = entregadosInmediatoPorObra(cat.titulo);
+      const fisicoRestante = cat.stock - entregados;
+      const edicionAgotada = edicionRestante <= 0;
+      const fisicoAgotado = fisicoRestante <= 0;
+      const esUltimaUnidad = TAMANOS_TOMA_DIRECTA.includes(cat.tamano) && fisicoRestante === 1;
+
+      let claseFila = "";
+      if(edicionAgotada) claseFila = " stock-agotado";
+      else if(esUltimaUnidad) claseFila = " stock-ultima-unidad";
+      else if(fisicoAgotado) claseFila = " stock-sin-fisico";
+
+      const div = document.createElement("div");
+      div.className = "stock-row" + claseFila;
+      div.innerHTML = `
+        <div class="stock-title">${cat.titulo} <span class="stock-tamano">(${cat.tamano})</span></div>
+        <div class="stock-nums">
+          <span title="Ventas totales contra el límite de la edición">Vendidas: ${vendidos}/${cat.ediciones}${edicionAgotada ? " ⚠ edición agotada" : ""}</span>
+          <span title="Copias físicas listas para entregar ahora en el stand" class="${esUltimaUnidad ? 'stock-num-alerta' : ''}">Físico p/entregar ya: ${fisicoRestante}${esUltimaUnidad ? " ⚠ última copia — ¿vender o guardar para exhibir?" : (!edicionAgotada && fisicoAgotado ? " ⚠ sin unidades a mano (solo encargo)" : "")}</span>
+        </div>
+      `;
+      grid.appendChild(div);
+    });
 }
 
 function renderVentas(){
@@ -523,8 +592,25 @@ function generarId(){
   return (crypto.randomUUID ? crypto.randomUUID() : (Date.now() + "-" + Math.random().toString(36).slice(2)));
 }
 
+function chequearLimites(datos, idExcluir){
+  const cat = catalogoPorTitulo(datos.obra);
+  if(!cat) return true;
+  const yaVendidos = ventas.filter(v => v.obra === datos.obra && !v.prueba && v.id !== idExcluir).length;
+  if(yaVendidos >= cat.ediciones){
+    if(!confirm(`"${datos.obra}" ya tiene ${yaVendidos}/${cat.ediciones} vendidas — te estarías pasando del total de la edición. ¿Guardar igual?`)) return false;
+  }
+  if(datos.estado === ESTADO_ENTREGA_INMEDIATA){
+    const yaEntregados = ventas.filter(v => v.obra === datos.obra && !v.prueba && v.estado === ESTADO_ENTREGA_INMEDIATA && v.id !== idExcluir).length;
+    if(yaEntregados >= cat.stock){
+      if(!confirm(`No quedan copias físicas de "${datos.obra}" en el stand para entregar ahora (${yaEntregados}/${cat.stock} ya entregadas). ¿Confirmás igual? (revisá si en realidad es un encargo)`)) return false;
+    }
+  }
+  return true;
+}
+
 async function guardarVenta(){
   const datos = leerFormulario();
+  if(!modoPrueba && !chequearLimites(datos, editingId)) return;
 
   if(editingId){
     // Estamos editando una venta ya cargada (no sincronizada todavía)
@@ -556,6 +642,8 @@ function editarVenta(id){
   const v = ventas.find(x => x.id === id);
   if(!v || v.synced) return;
   document.getElementById("vendedor").value = v.vendedor;
+  document.getElementById("tamano").value = v.tamano;
+  populateObrasPorTamano(v.tamano);
   document.getElementById("obra").value = v.obra;
   document.getElementById("edicion").value = v.edicion;
   document.getElementById("precioFinal").value = v.precioFinal;
@@ -675,6 +763,13 @@ function restaurarBackup(file){
 }
 populateSelects();
 updatePriceHint();
+poblarFiltroStock();
+document.getElementById("filtroStockTamano").addEventListener("change", renderStock);
+document.getElementById("tamano").addEventListener("change", (e)=>{
+  populateObrasPorTamano(e.target.value);
+  document.getElementById("precioFinal").value = "";
+  updatePriceHint();
+});
 document.getElementById("obra").addEventListener("change", ()=>{
   document.getElementById("precioFinal").value = "";
   updatePriceHint();
