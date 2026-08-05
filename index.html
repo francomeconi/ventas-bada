@@ -6,15 +6,16 @@
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <style>
   :root{
-    --bg:#0f1115; --card:#171a21; --card2:#1e222b; --border:#2a2f3a;
-    --text:#f2f3f5; --text2:#a7adba; --muted:#6b7280;
-    --accent:#4f8cff; --accent2:#1e3a6e;
-    --danger:#e5484d; --danger-bg:#3a1a1c;
-    --ok:#2fbf71; --ok-bg:#123822;
-    --warn:#e0a72e; --warn-bg:#3a2c10;
+    --bg:#f5f6f8; --card:#ffffff; --card2:#f0f2f5; --border:#dde1e7;
+    --text:#1a1d23; --text2:#5b6472; --muted:#9aa1ac;
+    --accent:#2f6fed; --accent2:#dce8ff;
+    --danger:#d92d3f; --danger-bg:#fdecee;
+    --ok:#1f9d55; --ok-bg:#e9f9ef;
+    --warn:#b8860b; --warn-bg:#fff6e0;
   }
   *{box-sizing:border-box;}
   body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;padding:16px;max-width:720px;margin:0 auto;}
+  .card{box-shadow:0 1px 2px rgba(20,20,30,0.06);}
   h1{font-size:18px;margin:0 0 4px;}
   .sub{color:var(--text2);font-size:13px;margin:0 0 16px;}
   .card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:14px;}
@@ -48,9 +49,15 @@
   .toast.show{opacity:1;}
   .actions{display:flex;gap:8px;}
   .actions button{flex:1;}
+  .test-banner{position:sticky;top:0;background:var(--warn);color:#3a2c00;text-align:center;font-weight:700;font-size:13px;padding:8px;border-radius:8px;margin-bottom:12px;display:none;z-index:10;}
+  .sale-item-actions{display:flex;gap:6px;margin-top:6px;}
+  .sale-item-actions button{padding:4px 10px;font-size:11px;font-weight:600;}
+  .tag-prueba{background:var(--warn-bg);color:var(--warn);}
 </style>
 </head>
 <body>
+
+<div class="test-banner" id="testBanner">🧪 MODO PRUEBA ACTIVO — estas ventas NO se guardan en el Sheet ni afectan el stock real</div>
 
 <h1>BADA 2026 — Registro rápido</h1>
 <p class="sub" id="subtitle">Se guarda solo en esta computadora y este navegador. Cargá acá cada venta, y de vez en cuando usá "Exportar para planilla" y "Descargar backup".</p>
@@ -59,6 +66,15 @@
   <div class="section-title">Conexión con Google Sheets</div>
   <p class="sub" style="margin-top:0;" id="authStatus">No conectado — las ventas se guardan en esta computadora hasta que te conectes.</p>
   <button class="btn-primary" id="btnConectar">Conectar con Google</button>
+</div>
+
+<div class="card" id="testModeCard">
+  <div class="section-title">Modo prueba</div>
+  <p class="sub" style="margin-top:0;">Activalo para probar el formulario sin afectar tu stock real ni escribir en el Sheet. Las ventas de prueba quedan marcadas y no cuentan para el stock ni se sincronizan. Desactivalo antes de vender de verdad.</p>
+  <label style="display:flex;align-items:center;gap:8px;font-size:14px;cursor:pointer;">
+    <input type="checkbox" id="chkModoPrueba" style="width:18px;height:18px;">
+    Modo prueba activo
+  </label>
 </div>
 
 <div class="card">
@@ -142,6 +158,7 @@
   </div>
 
   <button class="btn-primary" id="btnGuardar">Guardar venta</button>
+  <button class="btn-ghost" id="btnCancelarEdicion" style="display:none;margin-top:8px;width:100%;">Cancelar edición</button>
 </div>
 
 <div class="card">
@@ -192,6 +209,8 @@ const SHEET_RANGE = `${SHEET_NAME}!A:P`;
 let accessToken = null;
 let tokenClient = null;
 let googleReady = false;
+let refreshTimer = null;
+let intentosSilenciosos = 0;
 
 function initGoogleAuth(){
   if(typeof google === "undefined" || !google.accounts){
@@ -203,30 +222,51 @@ function initGoogleAuth(){
     scope: "https://www.googleapis.com/auth/spreadsheets",
     callback: (resp) => {
       if(resp.error){
-        showToast("No se pudo conectar con Google: " + resp.error);
+        // El intento silencioso falla la primera vez (todavía no diste el consentimiento
+        // manual una vez) — no es un error real, solo significa "hace falta un click".
+        accessToken = null;
+        updateAuthUI();
         return;
       }
       accessToken = resp.access_token;
       googleReady = true;
       updateAuthUI();
       sincronizarPendientes();
+      programarRenovacion(resp.expires_in);
     },
   });
   googleReady = true;
+  // Intento de reconexión SILENCIOSO al cargar la página — si ya diste el consentimiento
+  // antes en este navegador, esto conecta solo, sin pedirte que toques nada.
+  tokenClient.requestAccessToken({ prompt: "" });
+}
+
+function programarRenovacion(expiresInSeconds){
+  if(refreshTimer) clearTimeout(refreshTimer);
+  const ms = Math.max((expiresInSeconds || 3500) * 0.85, 60) * 1000;
+  refreshTimer = setTimeout(()=>{
+    if(tokenClient) tokenClient.requestAccessToken({ prompt: "" });
+  }, ms);
 }
 
 function updateAuthUI(){
   const status = document.getElementById("authStatus");
   const btn = document.getElementById("btnConectar");
   const btnSync = document.getElementById("btnSincronizar");
+  const card = document.getElementById("authCard");
   if(accessToken){
     status.textContent = "✓ Conectado — cada venta se guarda automáticamente en la planilla.";
     btn.textContent = "Reconectar";
     btnSync.style.display = "block";
+    card.style.border = "1px solid var(--ok)";
+    card.style.background = "var(--ok-bg)";
   } else {
-    status.textContent = "No conectado — las ventas se guardan en esta computadora hasta que te conectes.";
+    const pendientes = ventas.filter(v=>!v.synced && !v.prueba).length;
+    status.textContent = "⚠ NO conectado a Google — " + pendientes + " venta(s) esperando para sincronizarse. Tocá el botón.";
     btn.textContent = "Conectar con Google";
     btnSync.style.display = "none";
+    card.style.border = "2px solid var(--danger)";
+    card.style.background = "var(--danger-bg)";
   }
 }
 
@@ -273,8 +313,8 @@ async function appendToSheet(pendientes){
 
 async function sincronizarPendientes(){
   if(!accessToken){ showToast("Conectate con Google primero"); return; }
-  const pendientes = ventas.filter(v=>!v.synced);
-  if(pendientes.length === 0){ showToast("No hay ventas pendientes"); return; }
+  const pendientes = ventas.filter(v=>!v.synced && !v.prueba);
+  if(pendientes.length === 0){ showToast("No hay ventas pendientes (las de prueba no se sincronizan)"); return; }
   const ok = await appendToSheet(pendientes);
   if(ok){
     pendientes.forEach(v => v.synced = true);
@@ -284,7 +324,7 @@ async function sincronizarPendientes(){
   }
 }
 
-
+const CATALOGO = {
   obras: [
     { titulo: "La Luna", tamano: "100x150", precio: 3000000, stock: 1, ubicacion: "18" },
     { titulo: "Laguna y Trífida", tamano: "60x40", precio: 600000, stock: 1, ubicacion: "1" },
@@ -329,7 +369,26 @@ async function sincronizarPendientes(){
 function catalogoPorTitulo(titulo){ return CATALOGO.obras.find(o => o.titulo === titulo); }
 
 const STORAGE_KEY = "bada2026_ventas_rapidas";
+const TEST_MODE_KEY = "bada2026_modo_prueba";
 let ventas = [];
+let modoPrueba = false;
+let editingId = null;
+
+function loadModoPrueba(){
+  modoPrueba = localStorage.getItem(TEST_MODE_KEY) === "1";
+  document.getElementById("chkModoPrueba").checked = modoPrueba;
+  aplicarModoPruebaUI();
+}
+
+function aplicarModoPruebaUI(){
+  document.getElementById("testBanner").style.display = modoPrueba ? "block" : "none";
+}
+
+function toggleModoPrueba(checked){
+  modoPrueba = checked;
+  localStorage.setItem(TEST_MODE_KEY, modoPrueba ? "1" : "0");
+  aplicarModoPruebaUI();
+}
 
 function fmtARS(n){ return "$" + Math.round(n).toLocaleString("es-AR"); }
 
@@ -382,7 +441,7 @@ function saveVentas(){
 }
 
 function vendidosPorObra(titulo){
-  return ventas.filter(v => v.obra === titulo).length;
+  return ventas.filter(v => v.obra === titulo && !v.prueba).length;
 }
 
 function renderStock(){
@@ -401,8 +460,9 @@ function renderStock(){
 
 function renderVentas(){
   const list = document.getElementById("listaVentas");
-  document.getElementById("countVentas").textContent = ventas.length;
-  document.getElementById("countPendientes").textContent = ventas.filter(v=>!v.synced).length;
+  const reales = ventas.filter(v=>!v.prueba);
+  document.getElementById("countVentas").textContent = reales.length;
+  document.getElementById("countPendientes").textContent = reales.filter(v=>!v.synced).length;
   if(ventas.length === 0){
     list.innerHTML = '<div class="empty">Todavía no cargaste ninguna venta.</div>';
     return;
@@ -414,9 +474,16 @@ function renderVentas(){
     const cat = catalogoPorTitulo(v.obra);
     const diff = v.precioFinal - (cat?.precio ?? v.precioFinal);
     const flag = diff < 0 ? '<span class="flag flag-warn">bajo lista</span>' : '<span class="flag flag-ok">ok</span>';
+    const pruebaTag = v.prueba ? '<span class="flag tag-prueba">PRUEBA</span>' : '';
+    const acciones = (!v.synced) ? `
+      <div class="sale-item-actions">
+        <button class="btn-ghost" onclick="editarVenta('${v.id}')">✏️ Editar</button>
+        <button class="btn-danger" onclick="eliminarVenta('${v.id}')">🗑️ Eliminar</button>
+      </div>` : '';
     div.innerHTML = `
       <div class="sale-top"><span>${v.obra} — ${v.tamano || (cat?.tamano ?? "")}</span><span>${fmtARS(v.precioFinal)}</span></div>
-      <div class="sale-meta">${v.vendedor} · ${v.medio} · ${v.clienteNombre || "sin nombre"} ${flag} ${v.synced ? '<span class="tag">sincronizado</span>' : ''}</div>
+      <div class="sale-meta">${v.vendedor} · ${v.medio} · ${v.clienteNombre || "sin nombre"} ${flag} ${pruebaTag} ${v.synced ? '<span class="tag">sincronizado</span>' : ''}</div>
+      ${acciones}
     `;
     list.appendChild(div);
   });
@@ -424,11 +491,11 @@ function renderVentas(){
 
 function render(){ renderStock(); renderVentas(); }
 
-async function guardarVenta(){
-  const now = new Date();
+function leerFormulario(){
   const titulo = document.getElementById("obra").value;
   const cat = catalogoPorTitulo(titulo);
-  const venta = {
+  const now = new Date();
+  return {
     fecha: now.toLocaleDateString("es-AR"),
     hora: now.toLocaleTimeString("es-AR", {hour:"2-digit", minute:"2-digit"}),
     vendedor: document.getElementById("vendedor").value,
@@ -442,25 +509,91 @@ async function guardarVenta(){
     clienteCuit: document.getElementById("clienteCuit").value || "Pendiente",
     estado: document.getElementById("estado").value,
     notas: document.getElementById("notas").value,
-    synced: false,
   };
-  ventas.push(venta);
-  saveVentas();
-  render();
-  showToast("Venta guardada");
+}
+
+function limpiarFormulario(){
   ["edicion","precioFinal","clienteNombre","clienteContacto","clienteCuit","notas"].forEach(id=>{
     document.getElementById(id).value = "";
   });
   updatePriceHint();
-  if(accessToken){
+}
+
+function generarId(){
+  return (crypto.randomUUID ? crypto.randomUUID() : (Date.now() + "-" + Math.random().toString(36).slice(2)));
+}
+
+async function guardarVenta(){
+  const datos = leerFormulario();
+
+  if(editingId){
+    // Estamos editando una venta ya cargada (no sincronizada todavía)
+    const idx = ventas.findIndex(v => v.id === editingId);
+    if(idx >= 0){
+      ventas[idx] = { ...ventas[idx], ...datos };
+    }
+    editingId = null;
+    document.getElementById("btnGuardar").textContent = "Guardar venta";
+    document.getElementById("btnCancelarEdicion").style.display = "none";
+    saveVentas();
+    render();
+    showToast("Venta actualizada");
+  } else {
+    const venta = { ...datos, id: generarId(), synced: false, prueba: modoPrueba };
+    ventas.push(venta);
+    saveVentas();
+    render();
+    showToast(modoPrueba ? "Venta de PRUEBA guardada (no se sincroniza)" : "Venta guardada");
+  }
+
+  limpiarFormulario();
+  if(accessToken && !modoPrueba){
     sincronizarPendientes();
   }
+}
+
+function editarVenta(id){
+  const v = ventas.find(x => x.id === id);
+  if(!v || v.synced) return;
+  document.getElementById("vendedor").value = v.vendedor;
+  document.getElementById("obra").value = v.obra;
+  document.getElementById("edicion").value = v.edicion;
+  document.getElementById("precioFinal").value = v.precioFinal;
+  document.getElementById("medio").value = v.medio;
+  document.getElementById("clienteNombre").value = v.clienteNombre;
+  document.getElementById("clienteContacto").value = v.clienteContacto;
+  document.getElementById("clienteCuit").value = v.clienteCuit;
+  document.getElementById("estado").value = v.estado;
+  document.getElementById("notas").value = v.notas;
+  updatePriceHint();
+  editingId = id;
+  document.getElementById("btnGuardar").textContent = "Guardar cambios";
+  document.getElementById("btnCancelarEdicion").style.display = "block";
+  window.scrollTo({top:0, behavior:"smooth"});
+  showToast("Editando venta — corregí los campos y tocá 'Guardar cambios'");
+}
+
+function cancelarEdicion(){
+  editingId = null;
+  document.getElementById("btnGuardar").textContent = "Guardar venta";
+  document.getElementById("btnCancelarEdicion").style.display = "none";
+  limpiarFormulario();
+}
+
+function eliminarVenta(id){
+  const v = ventas.find(x => x.id === id);
+  if(!v || v.synced) return;
+  if(!confirm(`¿Eliminar la venta de "${v.obra}" (${fmtARS(v.precioFinal)})? No se puede deshacer.`)) return;
+  ventas = ventas.filter(x => x.id !== id);
+  saveVentas();
+  render();
+  showToast("Venta eliminada");
 }
 
 let ultimoExportPendientes = [];
 
 function exportarTSV(){
-  const pendientes = ventas.filter(v=>!v.synced);
+  const pendientes = ventas.filter(v=>!v.synced && !v.prueba);
   if(pendientes.length === 0){ showToast("No hay ventas sin sincronizar"); return; }
   const cols = ["fecha","hora","vendedor","obra","tamano","edicion","precioFinal","medio","clienteNombre","clienteContacto","clienteCuit","estado","notas"];
   const lines = pendientes.map(v => cols.map(c => (v[c] ?? "")).join("\t"));
@@ -571,9 +704,14 @@ document.getElementById("btnConectar").addEventListener("click", ()=>{
   tokenClient.requestAccessToken({ prompt: accessToken ? "" : "consent" });
 });
 document.getElementById("btnSincronizar").addEventListener("click", sincronizarPendientes);
-initGoogleAuth();
-updateAuthUI();
+document.getElementById("chkModoPrueba").addEventListener("change", (e)=>{
+  toggleModoPrueba(e.target.checked);
+});
+document.getElementById("btnCancelarEdicion").addEventListener("click", cancelarEdicion);
+loadModoPrueba();
 loadVentas();
+updateAuthUI();
+initGoogleAuth();
 </script>
 
 </body>
