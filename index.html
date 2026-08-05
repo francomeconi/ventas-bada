@@ -41,6 +41,9 @@
   .stock-row.stock-sin-fisico{border-color:var(--warn);background:var(--warn-bg);}
   .stock-row.stock-ultima-unidad{border-color:var(--danger);background:var(--danger-bg);}
   .stock-num-alerta{color:var(--danger);font-weight:700;}
+  .carrito-item{display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px;}
+  .carrito-item:last-child{border-bottom:none;}
+  .carrito-item button{padding:2px 8px;font-size:11px;background:var(--danger-bg);color:var(--danger);border:none;border-radius:6px;}
   .stock-title{font-weight:600;}
   .stock-tamano{font-weight:400;color:var(--text2);font-size:12px;}
   .stock-nums{display:flex;justify-content:space-between;flex-wrap:wrap;gap:4px 12px;color:var(--text2);font-size:12px;margin-top:2px;}
@@ -84,29 +87,7 @@
 </div>
 
 <div class="card">
-  <div class="section-title">Nueva venta</div>
-
-  <div class="row">
-    <div class="field">
-      <label>Vendedor</label>
-      <select id="vendedor">
-        <option>Franco</option>
-        <option>Hermano</option>
-        <option>Otro</option>
-      </select>
-    </div>
-    <div class="field">
-      <label>Medio de pago</label>
-      <select id="medio">
-        <option>Efectivo</option>
-        <option>Débito</option>
-        <option>Crédito 1 pago</option>
-        <option>Crédito en cuotas</option>
-        <option>Transferencia</option>
-        <option>Mercado Pago</option>
-      </select>
-    </div>
-  </div>
+  <div class="section-title">Agregar obra(s) a la venta</div>
 
   <div class="row">
     <div class="field">
@@ -130,6 +111,40 @@
     </div>
   </div>
   <div class="price-hint" id="priceHint"></div>
+
+  <button class="btn-ghost" id="btnAgregarCarrito" style="margin-top:10px;">+ Agregar al carrito</button>
+
+  <div id="carritoBox" style="margin-top:12px;display:none;">
+    <div class="section-title" style="margin-bottom:6px;">Carrito de esta venta</div>
+    <div id="carritoLista"></div>
+    <div id="carritoTotal" style="font-weight:700;font-size:15px;margin-top:8px;text-align:right;"></div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="section-title">Datos de la venta (se aplican a todo el carrito)</div>
+
+  <div class="row">
+    <div class="field">
+      <label>Vendedor</label>
+      <select id="vendedor">
+        <option>Franco</option>
+        <option>Hermano</option>
+        <option>Otro</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>Medio de pago</label>
+      <select id="medio">
+        <option>Efectivo</option>
+        <option>Débito</option>
+        <option>Crédito 1 pago</option>
+        <option>Crédito en cuotas</option>
+        <option>Transferencia</option>
+        <option>Mercado Pago</option>
+      </select>
+    </div>
+  </div>
 
   <div class="row" style="margin-top:10px;">
     <div class="field">
@@ -163,7 +178,7 @@
     <textarea id="notas" placeholder="Opcional"></textarea>
   </div>
 
-  <button class="btn-primary" id="btnGuardar">Guardar venta</button>
+  <button class="btn-primary" id="btnGuardar">Confirmar venta</button>
   <button class="btn-ghost" id="btnCancelarEdicion" style="display:none;margin-top:8px;width:100%;">Cancelar edición</button>
 </div>
 
@@ -176,9 +191,21 @@
   <div class="stock-grid" id="stockGrid"></div>
 </div>
 
+<div class="card" id="totalCard">
+  <div class="section-title">Total vendido</div>
+  <div id="totalVendido" style="font-size:26px;font-weight:700;"></div>
+  <div id="totalVendidoSub" class="sub" style="margin-top:2px;"></div>
+</div>
+
 <div class="card">
-  <div class="section-title">Ventas cargadas (<span id="countVentas">0</span>, <span id="countPendientes">0</span> sin sincronizar)</div>
-  <div id="listaVentas"><div class="empty">Todavía no cargaste ninguna venta.</div></div>
+  <div class="section-title">Ventas pendientes de sincronizar (<span id="countPendientes">0</span>)</div>
+  <div id="listaPendientes"><div class="empty">No hay ventas pendientes.</div></div>
+
+  <details style="margin-top:14px;">
+    <summary style="cursor:pointer;font-size:13px;color:var(--text2);">Ver historial ya sincronizado (<span id="countSincronizadas">0</span>)</summary>
+    <div id="listaSincronizadas" style="margin-top:10px;"></div>
+  </details>
+
   <div class="actions" style="margin-top:12px;">
     <button class="btn-primary" id="btnSincronizar" style="display:none;">Sincronizar pendientes ahora</button>
     <button class="btn-ghost" id="btnExportar">Exportar para planilla (manual)</button>
@@ -527,51 +554,81 @@ function renderStock(){
     });
 }
 
-function renderVentas(){
-  const list = document.getElementById("listaVentas");
+function renderItemVenta(v){
+  const div = document.createElement("div");
+  div.className = "sale-item";
+  const cat = catalogoPorTitulo(v.obra);
+  const diff = v.precioFinal - (cat?.precio ?? v.precioFinal);
+  const flag = diff < 0 ? '<span class="flag flag-warn">bajo lista</span>' : '<span class="flag flag-ok">ok</span>';
+  const pruebaTag = v.prueba ? '<span class="flag tag-prueba">PRUEBA</span>' : '';
+  const acciones = (!v.synced) ? `
+    <div class="sale-item-actions">
+      <button class="btn-ghost" onclick="editarVenta('${v.id}')">✏️ Editar</button>
+      <button class="btn-danger" onclick="eliminarVenta('${v.id}')">🗑️ Eliminar</button>
+    </div>` : '';
+  div.innerHTML = `
+    <div class="sale-top"><span>${v.obra} — ${v.tamano || (cat?.tamano ?? "")}</span><span>${fmtARS(v.precioFinal)}</span></div>
+    <div class="sale-meta">${v.fecha} ${v.hora} · ${v.vendedor} · ${v.medio} · ${v.clienteNombre || "sin nombre"} ${flag} ${pruebaTag} ${v.synced ? '<span class="tag">sincronizado</span>' : ''}</div>
+    ${acciones}
+  `;
+  return div;
+}
+
+function renderTotalVendido(){
   const reales = ventas.filter(v=>!v.prueba);
-  document.getElementById("countVentas").textContent = reales.length;
-  document.getElementById("countPendientes").textContent = reales.filter(v=>!v.synced).length;
-  if(ventas.length === 0){
-    list.innerHTML = '<div class="empty">Todavía no cargaste ninguna venta.</div>';
-    return;
+  const total = reales.reduce((s, v) => s + v.precioFinal, 0);
+  document.getElementById("totalVendido").textContent = fmtARS(total);
+  document.getElementById("totalVendidoSub").textContent =
+    `${reales.length} ítem(s) vendidos` + (ventas.some(v=>v.prueba) ? " · no incluye ventas de prueba" : "");
+}
+
+function renderVentas(){
+  const pendientesBox = document.getElementById("listaPendientes");
+  const sincronizadasBox = document.getElementById("listaSincronizadas");
+  const pendientes = ventas.filter(v=>!v.synced);
+  const sincronizadas = ventas.filter(v=>v.synced);
+
+  document.getElementById("countPendientes").textContent = pendientes.filter(v=>!v.prueba).length;
+  document.getElementById("countSincronizadas").textContent = sincronizadas.length;
+
+  pendientesBox.innerHTML = "";
+  if(pendientes.length === 0){
+    pendientesBox.innerHTML = '<div class="empty">No hay ventas pendientes.</div>';
+  } else {
+    pendientes.slice().reverse().forEach(v => pendientesBox.appendChild(renderItemVenta(v)));
   }
-  list.innerHTML = "";
-  ventas.slice().reverse().forEach(v=>{
-    const div = document.createElement("div");
-    div.className = "sale-item";
-    const cat = catalogoPorTitulo(v.obra);
-    const diff = v.precioFinal - (cat?.precio ?? v.precioFinal);
-    const flag = diff < 0 ? '<span class="flag flag-warn">bajo lista</span>' : '<span class="flag flag-ok">ok</span>';
-    const pruebaTag = v.prueba ? '<span class="flag tag-prueba">PRUEBA</span>' : '';
-    const acciones = (!v.synced) ? `
-      <div class="sale-item-actions">
-        <button class="btn-ghost" onclick="editarVenta('${v.id}')">✏️ Editar</button>
-        <button class="btn-danger" onclick="eliminarVenta('${v.id}')">🗑️ Eliminar</button>
-      </div>` : '';
-    div.innerHTML = `
-      <div class="sale-top"><span>${v.obra} — ${v.tamano || (cat?.tamano ?? "")}</span><span>${fmtARS(v.precioFinal)}</span></div>
-      <div class="sale-meta">${v.vendedor} · ${v.medio} · ${v.clienteNombre || "sin nombre"} ${flag} ${pruebaTag} ${v.synced ? '<span class="tag">sincronizado</span>' : ''}</div>
-      ${acciones}
-    `;
-    list.appendChild(div);
-  });
+
+  sincronizadasBox.innerHTML = "";
+  if(sincronizadas.length === 0){
+    sincronizadasBox.innerHTML = '<div class="empty">Todavía no sincronizaste ninguna venta.</div>';
+  } else {
+    sincronizadas.slice().reverse().forEach(v => sincronizadasBox.appendChild(renderItemVenta(v)));
+  }
+
+  renderTotalVendido();
 }
 
 function render(){ renderStock(); renderVentas(); }
 
-function leerFormulario(){
+let carrito = [];
+
+function leerItem(){
   const titulo = document.getElementById("obra").value;
   const cat = catalogoPorTitulo(titulo);
+  return {
+    obra: titulo,
+    tamano: cat ? cat.tamano : "",
+    edicion: document.getElementById("edicion").value,
+    precioFinal: Number(document.getElementById("precioFinal").value || 0),
+  };
+}
+
+function leerDatosCompartidos(){
   const now = new Date();
   return {
     fecha: now.toLocaleDateString("es-AR"),
     hora: now.toLocaleTimeString("es-AR", {hour:"2-digit", minute:"2-digit"}),
     vendedor: document.getElementById("vendedor").value,
-    obra: titulo,
-    tamano: cat ? cat.tamano : "",
-    edicion: document.getElementById("edicion").value,
-    precioFinal: Number(document.getElementById("precioFinal").value || 0),
     medio: document.getElementById("medio").value,
     clienteNombre: document.getElementById("clienteNombre").value,
     clienteContacto: document.getElementById("clienteContacto").value,
@@ -581,58 +638,124 @@ function leerFormulario(){
   };
 }
 
-function limpiarFormulario(){
-  ["edicion","precioFinal","clienteNombre","clienteContacto","clienteCuit","notas"].forEach(id=>{
+function limpiarItemFormulario(){
+  document.getElementById("edicion").value = "";
+  document.getElementById("precioFinal").value = "";
+  updatePriceHint();
+}
+
+function limpiarFormularioCompleto(){
+  limpiarItemFormulario();
+  ["clienteNombre","clienteContacto","clienteCuit","notas"].forEach(id=>{
     document.getElementById(id).value = "";
   });
-  updatePriceHint();
+  document.getElementById("clienteCuit").value = "";
+  document.getElementById("estado").selectedIndex = 0;
 }
 
 function generarId(){
   return (crypto.randomUUID ? crypto.randomUUID() : (Date.now() + "-" + Math.random().toString(36).slice(2)));
 }
 
-function chequearLimites(datos, idExcluir){
-  const cat = catalogoPorTitulo(datos.obra);
+function chequearLimiteItem(item, estadoEntrega, idExcluir, extraEnCarrito){
+  const cat = catalogoPorTitulo(item.obra);
   if(!cat) return true;
-  const yaVendidos = ventas.filter(v => v.obra === datos.obra && !v.prueba && v.id !== idExcluir).length;
+  const enCarrito = extraEnCarrito.filter(c => c.obra === item.obra).length;
+  const yaVendidos = ventas.filter(v => v.obra === item.obra && !v.prueba && v.id !== idExcluir).length + enCarrito;
   if(yaVendidos >= cat.ediciones){
-    if(!confirm(`"${datos.obra}" ya tiene ${yaVendidos}/${cat.ediciones} vendidas — te estarías pasando del total de la edición. ¿Guardar igual?`)) return false;
+    if(!confirm(`"${item.obra}" ya tiene ${yaVendidos}/${cat.ediciones} vendidas (contando el carrito) — te estarías pasando del total de la edición. ¿Agregar igual?`)) return false;
   }
-  if(datos.estado === ESTADO_ENTREGA_INMEDIATA){
-    const yaEntregados = ventas.filter(v => v.obra === datos.obra && !v.prueba && v.estado === ESTADO_ENTREGA_INMEDIATA && v.id !== idExcluir).length;
+  if(estadoEntrega === ESTADO_ENTREGA_INMEDIATA){
+    const yaEntregados = ventas.filter(v => v.obra === item.obra && !v.prueba && v.estado === ESTADO_ENTREGA_INMEDIATA && v.id !== idExcluir).length;
     if(yaEntregados >= cat.stock){
-      if(!confirm(`No quedan copias físicas de "${datos.obra}" en el stand para entregar ahora (${yaEntregados}/${cat.stock} ya entregadas). ¿Confirmás igual? (revisá si en realidad es un encargo)`)) return false;
+      if(!confirm(`No quedan copias físicas de "${item.obra}" en el stand para entregar ahora (${yaEntregados}/${cat.stock} ya entregadas). ¿Confirmás igual?`)) return false;
     }
   }
   return true;
 }
 
-async function guardarVenta(){
-  const datos = leerFormulario();
-  if(!modoPrueba && !chequearLimites(datos, editingId)) return;
+function agregarAlCarrito(){
+  const item = leerItem();
+  if(!item.obra){ showToast("Elegí una obra primero"); return; }
+  const estadoActual = document.getElementById("estado").value;
+  if(!modoPrueba && !chequearLimiteItem(item, estadoActual, editingId, carrito)) return;
+  carrito.push(item);
+  renderCarrito();
+  limpiarItemFormulario();
+  showToast("Agregado al carrito");
+}
 
+function quitarDelCarrito(idx){
+  carrito.splice(idx, 1);
+  renderCarrito();
+}
+
+function renderCarrito(){
+  const box = document.getElementById("carritoBox");
+  const lista = document.getElementById("carritoLista");
+  const totalEl = document.getElementById("carritoTotal");
+  if(carrito.length === 0){ box.style.display = "none"; lista.innerHTML = ""; return; }
+  box.style.display = "block";
+  lista.innerHTML = "";
+  let total = 0;
+  carrito.forEach((item, idx)=>{
+    total += item.precioFinal;
+    const div = document.createElement("div");
+    div.className = "carrito-item";
+    div.innerHTML = `<span>${item.obra} (${item.tamano})${item.edicion ? " — ed. " + item.edicion : ""} — ${fmtARS(item.precioFinal)}</span><button onclick="quitarDelCarrito(${idx})">Quitar</button>`;
+    lista.appendChild(div);
+  });
+  totalEl.textContent = `Total: ${fmtARS(total)} (${carrito.length} ítem${carrito.length > 1 ? "s" : ""})`;
+}
+
+async function guardarVenta(){
   if(editingId){
-    // Estamos editando una venta ya cargada (no sincronizada todavía)
+    // Edición de una venta puntual ya cargada (no sincronizada todavía) — no pasa por el carrito
+    const item = leerItem();
+    const compartidos = leerDatosCompartidos();
+    if(!modoPrueba && !chequearLimiteItem(item, compartidos.estado, editingId, [])) return;
     const idx = ventas.findIndex(v => v.id === editingId);
     if(idx >= 0){
-      ventas[idx] = { ...ventas[idx], ...datos };
+      ventas[idx] = { ...ventas[idx], ...item, ...compartidos };
     }
     editingId = null;
-    document.getElementById("btnGuardar").textContent = "Guardar venta";
+    document.getElementById("btnGuardar").textContent = "Confirmar venta";
     document.getElementById("btnCancelarEdicion").style.display = "none";
     saveVentas();
     render();
     showToast("Venta actualizada");
-  } else {
-    const venta = { ...datos, id: generarId(), synced: false, prueba: modoPrueba };
-    ventas.push(venta);
-    saveVentas();
-    render();
-    showToast(modoPrueba ? "Venta de PRUEBA guardada (no se sincroniza)" : "Venta guardada");
+    limpiarItemFormulario();
+    return;
   }
 
-  limpiarFormulario();
+  // Si el carrito está vacío pero hay una obra elegida en el formulario, la agregamos sola
+  // (así vender un solo ítem no exige el paso extra de "Agregar al carrito").
+  if(carrito.length === 0){
+    const item = leerItem();
+    if(item.obra){
+      const estadoActual = document.getElementById("estado").value;
+      if(!modoPrueba && !chequearLimiteItem(item, estadoActual, null, carrito)) return;
+      carrito.push(item);
+    }
+  }
+  if(carrito.length === 0){ showToast("Agregá al menos una obra"); return; }
+
+  const compartidos = leerDatosCompartidos();
+  const nuevasVentas = carrito.map(item => ({
+    ...item, ...compartidos, id: generarId(), synced: false, prueba: modoPrueba,
+  }));
+  ventas.push(...nuevasVentas);
+  const cantidad = carrito.length;
+  const totalVenta = carrito.reduce((s, i) => s + i.precioFinal, 0);
+  carrito = [];
+  renderCarrito();
+  saveVentas();
+  render();
+  showToast(modoPrueba
+    ? `Venta de PRUEBA guardada: ${cantidad} ítem(s), ${fmtARS(totalVenta)} (no se sincroniza)`
+    : `Venta guardada: ${cantidad} ítem(s), ${fmtARS(totalVenta)}`);
+
+  limpiarFormularioCompleto();
   if(accessToken && !modoPrueba){
     sincronizarPendientes();
   }
@@ -663,9 +786,9 @@ function editarVenta(id){
 
 function cancelarEdicion(){
   editingId = null;
-  document.getElementById("btnGuardar").textContent = "Guardar venta";
+  document.getElementById("btnGuardar").textContent = "Confirmar venta";
   document.getElementById("btnCancelarEdicion").style.display = "none";
-  limpiarFormulario();
+  limpiarItemFormulario();
 }
 
 function eliminarVenta(id){
@@ -774,6 +897,7 @@ document.getElementById("obra").addEventListener("change", ()=>{
   document.getElementById("precioFinal").value = "";
   updatePriceHint();
 });
+document.getElementById("btnAgregarCarrito").addEventListener("click", agregarAlCarrito);
 document.getElementById("btnGuardar").addEventListener("click", guardarVenta);
 document.getElementById("btnExportar").addEventListener("click", exportarTSV);
 document.getElementById("btnBorrarTodo").addEventListener("click", borrarTodo);
