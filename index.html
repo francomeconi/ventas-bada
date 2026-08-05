@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>BADA 2026 — Registro rápido de ventas</title>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<style>
+  :root{
+    --bg:#0f1115; --card:#171a21; --card2:#1e222b; --border:#2a2f3a;
+    --text:#f2f3f5; --text2:#a7adba; --muted:#6b7280;
+    --accent:#4f8cff; --accent2:#1e3a6e;
+    --danger:#e5484d; --danger-bg:#3a1a1c;
+    --ok:#2fbf71; --ok-bg:#123822;
+    --warn:#e0a72e; --warn-bg:#3a2c10;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;padding:16px;max-width:720px;margin:0 auto;}
+  h1{font-size:18px;margin:0 0 4px;}
+  .sub{color:var(--text2);font-size:13px;margin:0 0 16px;}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:14px;}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+  label{display:block;font-size:12px;color:var(--text2);margin-bottom:4px;}
+  select,input,textarea{width:100%;background:var(--card2);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:9px 10px;font-size:14px;}
+  textarea{resize:vertical;min-height:40px;}
+  .field{margin-bottom:10px;}
+  .row{display:flex;gap:10px;}
+  .row>div{flex:1;}
+  button{cursor:pointer;border:none;border-radius:8px;padding:11px 14px;font-size:14px;font-weight:600;}
+  .btn-primary{background:var(--accent);color:white;width:100%;}
+  .btn-primary:active{opacity:.85;}
+  .btn-ghost{background:var(--card2);color:var(--text);border:1px solid var(--border);}
+  .btn-danger{background:var(--danger-bg);color:#ffb3b5;border:1px solid var(--danger);}
+  .price-hint{font-size:12px;color:var(--text2);margin-top:4px;}
+  .flag{padding:2px 8px;border-radius:6px;font-size:11px;font-weight:600;}
+  .flag-warn{background:var(--warn-bg);color:var(--warn);}
+  .flag-ok{background:var(--ok-bg);color:var(--ok);}
+  .stock-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+  .stock-item{background:var(--card2);border-radius:8px;padding:8px 10px;font-size:13px;display:flex;justify-content:space-between;align-items:center;}
+  .stock-item.low{border:1px solid var(--danger);}
+  .sale-item{border-bottom:1px solid var(--border);padding:10px 0;font-size:13px;}
+  .sale-item:last-child{border-bottom:none;}
+  .sale-top{display:flex;justify-content:space-between;font-weight:600;}
+  .sale-meta{color:var(--text2);font-size:12px;margin-top:2px;}
+  .tag{display:inline-block;background:var(--card2);border-radius:6px;padding:1px 6px;font-size:11px;margin-right:4px;color:var(--text2);}
+  .empty{color:var(--muted);font-size:13px;text-align:center;padding:16px 0;}
+  .section-title{font-size:13px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.04em;margin:0 0 10px;}
+  .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--ok-bg);color:var(--ok);border:1px solid var(--ok);padding:10px 16px;border-radius:8px;font-size:13px;opacity:0;transition:opacity .2s;pointer-events:none;}
+  .toast.show{opacity:1;}
+  .actions{display:flex;gap:8px;}
+  .actions button{flex:1;}
+</style>
+</head>
+<body>
+
+<h1>BADA 2026 — Registro rápido</h1>
+<p class="sub" id="subtitle">Se guarda solo en esta computadora y este navegador. Cargá acá cada venta, y de vez en cuando usá "Exportar para planilla" y "Descargar backup".</p>
+
+<div class="card" id="authCard">
+  <div class="section-title">Conexión con Google Sheets</div>
+  <p class="sub" style="margin-top:0;" id="authStatus">No conectado — las ventas se guardan en esta computadora hasta que te conectes.</p>
+  <button class="btn-primary" id="btnConectar">Conectar con Google</button>
+</div>
+
+<div class="card">
+  <div class="section-title">Nueva venta</div>
+
+  <div class="row">
+    <div class="field">
+      <label>Vendedor</label>
+      <select id="vendedor">
+        <option>Franco</option>
+        <option>Hermano</option>
+        <option>Otro</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>Medio de pago</label>
+      <select id="medio">
+        <option>Efectivo</option>
+        <option>Débito</option>
+        <option>Crédito 1 pago</option>
+        <option>Crédito en cuotas</option>
+        <option>Transferencia</option>
+        <option>Mercado Pago</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="field">
+      <label>Obra</label>
+      <select id="obra"></select>
+    </div>
+    <div class="field">
+      <label>Tamaño</label>
+      <input id="tamanoDisplay" disabled placeholder="—">
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="field">
+      <label>N° edición (ej. 3/15)</label>
+      <input id="edicion" placeholder="3/15">
+    </div>
+    <div class="field">
+      <label>Precio final cobrado (ARS)</label>
+      <input id="precioFinal" type="number" inputmode="numeric" placeholder="0">
+    </div>
+  </div>
+  <div class="price-hint" id="priceHint"></div>
+
+  <div class="row" style="margin-top:10px;">
+    <div class="field">
+      <label>Cliente — Nombre</label>
+      <input id="clienteNombre" placeholder="Nombre y apellido">
+    </div>
+    <div class="field">
+      <label>Cliente — WhatsApp/Email</label>
+      <input id="clienteContacto" placeholder="+54 9 ...">
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="field">
+      <label>Cliente — CUIT/DNI</label>
+      <input id="clienteCuit" placeholder="Dejar vacío = Pendiente">
+    </div>
+    <div class="field">
+      <label>Estado de entrega</label>
+      <select id="estado">
+        <option>Entregado en el momento</option>
+        <option>A retirar</option>
+        <option>Envío</option>
+        <option>Encargo pendiente de producción</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="field">
+    <label>Notas</label>
+    <textarea id="notas" placeholder="Opcional"></textarea>
+  </div>
+
+  <button class="btn-primary" id="btnGuardar">Guardar venta</button>
+</div>
+
+<div class="card">
+  <div class="section-title">Stock en vivo</div>
+  <div class="stock-grid" id="stockGrid"></div>
+</div>
+
+<div class="card">
+  <div class="section-title">Ventas cargadas (<span id="countVentas">0</span>, <span id="countPendientes">0</span> sin sincronizar)</div>
+  <div id="listaVentas"><div class="empty">Todavía no cargaste ninguna venta.</div></div>
+  <div class="actions" style="margin-top:12px;">
+    <button class="btn-primary" id="btnSincronizar" style="display:none;">Sincronizar pendientes ahora</button>
+    <button class="btn-ghost" id="btnExportar">Exportar para planilla (manual)</button>
+    <button class="btn-danger" id="btnBorrarTodo">Borrar todo</button>
+  </div>
+
+  <div id="exportBox" style="display:none;margin-top:12px;">
+    <label>Tocá el texto, seleccioná todo (o usá el botón de abajo) y copiá con Ctrl+C</label>
+    <textarea id="exportTextarea" readonly style="min-height:100px;font-family:monospace;font-size:11px;"></textarea>
+    <div class="actions" style="margin-top:8px;">
+      <button class="btn-ghost" id="btnSeleccionarTodo">Seleccionar todo</button>
+      <button class="btn-primary" id="btnConfirmarCopiado">Ya lo copié</button>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="section-title">Backup de seguridad</div>
+  <p class="sub" style="margin-top:0;">Esto NO reemplaza sincronizar con la planilla — es un respaldo extra por si esta computadora tiene un problema. Descargalo un par de veces por día y guardalo en un pendrive o subilo a Drive/mail.</p>
+  <div class="actions">
+    <button class="btn-ghost" id="btnDescargarBackup">Descargar backup (.json)</button>
+    <button class="btn-ghost" id="btnRestaurarBackup">Restaurar desde backup</button>
+  </div>
+  <input type="file" id="inputRestaurar" accept="application/json" style="display:none;">
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ---------------------------------------------------------------
+// CONFIGURACIÓN GOOGLE SHEETS API
+// ---------------------------------------------------------------
+const GOOGLE_CLIENT_ID = "679034443902-c8ppp5bjj939jgcn418a70nclls5bqhm.apps.googleusercontent.com";
+const SPREADSHEET_ID = "154_GMi3n4uX-PtnNByE6h466g5ch3dlHDZITZvClZt8";
+const SHEET_NAME = "Ventas";
+const SHEET_RANGE = `${SHEET_NAME}!A:P`;
+
+let accessToken = null;
+let tokenClient = null;
+let googleReady = false;
+
+function initGoogleAuth(){
+  if(typeof google === "undefined" || !google.accounts){
+    setTimeout(initGoogleAuth, 300);
+    return;
+  }
+  tokenClient = google.accounts.oauth2.initTokenClient({
+    client_id: GOOGLE_CLIENT_ID,
+    scope: "https://www.googleapis.com/auth/spreadsheets",
+    callback: (resp) => {
+      if(resp.error){
+        showToast("No se pudo conectar con Google: " + resp.error);
+        return;
+      }
+      accessToken = resp.access_token;
+      googleReady = true;
+      updateAuthUI();
+      sincronizarPendientes();
+    },
+  });
+  googleReady = true;
+}
+
+function updateAuthUI(){
+  const status = document.getElementById("authStatus");
+  const btn = document.getElementById("btnConectar");
+  const btnSync = document.getElementById("btnSincronizar");
+  if(accessToken){
+    status.textContent = "✓ Conectado — cada venta se guarda automáticamente en la planilla.";
+    btn.textContent = "Reconectar";
+    btnSync.style.display = "block";
+  } else {
+    status.textContent = "No conectado — las ventas se guardan en esta computadora hasta que te conectes.";
+    btn.textContent = "Conectar con Google";
+    btnSync.style.display = "none";
+  }
+}
+
+function ventaToRow(v){
+  return [v.fecha, v.hora, v.vendedor, v.obra, v.tamano, v.edicion, "", v.precioFinal, "", v.medio, v.clienteNombre, v.clienteContacto, v.clienteCuit, v.estado, "", v.notas];
+  // Nota: dejamos vacías "Precio de lista" y "Diferencia" (columnas G e I) porque en el Sheet
+  // esas columnas tienen fórmulas propias que se autocompletan solas al escribir la fila.
+}
+
+async function appendToSheet(pendientes){
+  if(SPREADSHEET_ID === "PEGAR_AQUI_EL_SPREADSHEET_ID"){
+    showToast("Falta configurar el Spreadsheet ID — avisale a Claude");
+    return false;
+  }
+  const values = pendientes.map(ventaToRow);
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${encodeURIComponent(SHEET_RANGE)}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`;
+  try{
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Authorization": "Bearer " + accessToken,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ values }),
+    });
+    if(!res.ok){
+      const err = await res.text();
+      console.error(err);
+      if(res.status === 401){
+        accessToken = null;
+        updateAuthUI();
+        showToast("Sesión de Google vencida — reconectá");
+      } else {
+        showToast("Error al sincronizar con Sheets (" + res.status + ")");
+      }
+      return false;
+    }
+    return true;
+  }catch(e){
+    showToast("Sin conexión — se sincronizará más tarde");
+    return false;
+  }
+}
+
+async function sincronizarPendientes(){
+  if(!accessToken){ showToast("Conectate con Google primero"); return; }
+  const pendientes = ventas.filter(v=>!v.synced);
+  if(pendientes.length === 0){ showToast("No hay ventas pendientes"); return; }
+  const ok = await appendToSheet(pendientes);
+  if(ok){
+    pendientes.forEach(v => v.synced = true);
+    saveVentas();
+    render();
+    showToast(pendientes.length + " venta(s) sincronizadas con la planilla");
+  }
+}
+
+
+  obras: [
+    { titulo: "La Luna", tamano: "100x150", precio: 3000000, stock: 1, ubicacion: "18" },
+    { titulo: "Laguna y Trífida", tamano: "60x40", precio: 600000, stock: 1, ubicacion: "1" },
+    { titulo: "Corona Australis", tamano: "60x40", precio: 600000, stock: 1, ubicacion: "2" },
+    { titulo: "Cabeza de Caballo", tamano: "60x40", precio: 600000, stock: 1, ubicacion: "3" },
+    { titulo: "Lambda Centauri", tamano: "60x40", precio: 600000, stock: 1, ubicacion: "4" },
+    { titulo: "Rho Ofiuco", tamano: "60x40", precio: 600000, stock: 1, ubicacion: "5" },
+    { titulo: "Gabriela Mistral", tamano: "60x40", precio: 600000, stock: 1, ubicacion: "6" },
+    { titulo: "Creciente", tamano: "20x20", precio: 70000, stock: 8, ubicacion: "7" },
+    { titulo: "Cuarto Creciente", tamano: "20x20", precio: 70000, stock: 8, ubicacion: "8" },
+    { titulo: "Creciente Gibosa", tamano: "20x20", precio: 70000, stock: 8, ubicacion: "9" },
+    { titulo: "Llena", tamano: "20x20", precio: 70000, stock: 15, ubicacion: "10" },
+    { titulo: "Menguante Gibosa", tamano: "20x20", precio: 70000, stock: 8, ubicacion: "11" },
+    { titulo: "Cuarto Menguante", tamano: "20x20", precio: 70000, stock: 8, ubicacion: "12" },
+    { titulo: "Menguante", tamano: "20x20", precio: 70000, stock: 8, ubicacion: "13" },
+    { titulo: "Carina", tamano: "60x90", precio: 1000000, stock: 1, ubicacion: "14" },
+    { titulo: "Pléyades", tamano: "60x90", precio: 1000000, stock: 1, ubicacion: "15" },
+    { titulo: "Nebulosa Roseta", tamano: "60x90", precio: 1000000, stock: 1, ubicacion: "16" },
+    { titulo: "Fases lunares (panorámico)", tamano: "100x30", precio: 750000, stock: 1, ubicacion: "17" },
+    { titulo: "Cabeza de Delfín", tamano: "30x30", precio: 120000, stock: 3, ubicacion: "19" },
+    { titulo: "Helix", tamano: "30x30", precio: 120000, stock: 3, ubicacion: "20" },
+    { titulo: "Pilares de la Creación", tamano: "30x30", precio: 120000, stock: 3, ubicacion: "21" },
+    { titulo: "Trífida", tamano: "30x30", precio: 120000, stock: 3, ubicacion: "22" },
+    { titulo: "Estatua de la Libertad", tamano: "30x30", precio: 120000, stock: 3, ubicacion: "23" },
+    { titulo: "EMC", tamano: "30x30", precio: 120000, stock: 3, ubicacion: "24" },
+    { titulo: "Sol", tamano: "30x30", precio: 120000, stock: 5, ubicacion: "25" },
+    { titulo: "Luna Llena", tamano: "30x30", precio: 120000, stock: 5, ubicacion: "26" },
+    { titulo: "Galaxia del Escultor", tamano: "30x30", precio: 120000, stock: 3, ubicacion: "27" },
+    { titulo: "Casco de Thor", tamano: "30x30", precio: 120000, stock: 3, ubicacion: "28" },
+    { titulo: "Cabeza de Caballo Azul", tamano: "20x30", precio: 100000, stock: 3, ubicacion: "Revistero" },
+    { titulo: "NGC 6729", tamano: "20x30", precio: 100000, stock: 3, ubicacion: "Revistero" },
+    { titulo: "Huella de Gato", tamano: "20x30", precio: 100000, stock: 3, ubicacion: "Revistero" },
+    { titulo: "Nebulosa de la Gamba", tamano: "20x30", precio: 100000, stock: 3, ubicacion: "Revistero" },
+    { titulo: "Nebulosa del Cisne", tamano: "20x30", precio: 100000, stock: 3, ubicacion: "Revistero" },
+    { titulo: "Orión", tamano: "20x30", precio: 100000, stock: 3, ubicacion: "Revistero" },
+    { titulo: "Renacuajos del Sur", tamano: "20x30", precio: 100000, stock: 3, ubicacion: "Revistero" },
+    { titulo: "Tarántula", tamano: "20x30", precio: 100000, stock: 3, ubicacion: "Revistero" },
+    { titulo: "Camaleón 1", tamano: "20x30", precio: 100000, stock: 3, ubicacion: "Revistero" },
+    { titulo: "Camaleón 2", tamano: "20x30", precio: 100000, stock: 3, ubicacion: "Revistero" },
+  ],
+};
+function catalogoPorTitulo(titulo){ return CATALOGO.obras.find(o => o.titulo === titulo); }
+
+const STORAGE_KEY = "bada2026_ventas_rapidas";
+let ventas = [];
+
+function fmtARS(n){ return "$" + Math.round(n).toLocaleString("es-AR"); }
+
+function populateSelects(){
+  const oSel = document.getElementById("obra");
+  CATALOGO.obras.forEach(o=>{
+    const opt = document.createElement("option");
+    opt.value = o.titulo;
+    opt.textContent = `${o.titulo} (${o.tamano})`;
+    oSel.appendChild(opt);
+  });
+}
+
+function updatePriceHint(){
+  const titulo = document.getElementById("obra").value;
+  const cat = catalogoPorTitulo(titulo);
+  const hint = document.getElementById("priceHint");
+  const finalInput = document.getElementById("precioFinal");
+  const tamanoDisplay = document.getElementById("tamanoDisplay");
+  if(!cat){ hint.textContent = ""; tamanoDisplay.value = ""; return; }
+  tamanoDisplay.value = cat.tamano;
+  hint.textContent = "Precio de lista: " + fmtARS(cat.precio) + " · Ubicación: " + cat.ubicacion;
+  if(!finalInput.value){ finalInput.value = cat.precio; }
+}
+
+function showToast(msg){
+  const t = document.getElementById("toast");
+  t.textContent = msg;
+  t.classList.add("show");
+  setTimeout(()=>t.classList.remove("show"), 1800);
+}
+
+function loadVentas(){
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    ventas = raw ? JSON.parse(raw) : [];
+  }catch(e){
+    ventas = [];
+    showToast("No se pudo leer el guardado local — empezando vacío");
+  }
+  render();
+}
+
+function saveVentas(){
+  try{
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(ventas));
+  }catch(e){
+    showToast("⚠ Error al guardar en este navegador — hacé un backup ahora");
+  }
+}
+
+function vendidosPorObra(titulo){
+  return ventas.filter(v => v.obra === titulo).length;
+}
+
+function renderStock(){
+  const grid = document.getElementById("stockGrid");
+  grid.innerHTML = "";
+  CATALOGO.obras.forEach(cat=>{
+    const vendidos = vendidosPorObra(cat.titulo);
+    const restante = cat.stock - vendidos;
+    const low = restante <= 0;
+    const div = document.createElement("div");
+    div.className = "stock-item" + (low ? " low" : "");
+    div.innerHTML = "<span>" + cat.titulo + " (" + cat.tamano + ")</span><span>" + restante + (low ? " ⚠" : "") + "</span>";
+    grid.appendChild(div);
+  });
+}
+
+function renderVentas(){
+  const list = document.getElementById("listaVentas");
+  document.getElementById("countVentas").textContent = ventas.length;
+  document.getElementById("countPendientes").textContent = ventas.filter(v=>!v.synced).length;
+  if(ventas.length === 0){
+    list.innerHTML = '<div class="empty">Todavía no cargaste ninguna venta.</div>';
+    return;
+  }
+  list.innerHTML = "";
+  ventas.slice().reverse().forEach(v=>{
+    const div = document.createElement("div");
+    div.className = "sale-item";
+    const cat = catalogoPorTitulo(v.obra);
+    const diff = v.precioFinal - (cat?.precio ?? v.precioFinal);
+    const flag = diff < 0 ? '<span class="flag flag-warn">bajo lista</span>' : '<span class="flag flag-ok">ok</span>';
+    div.innerHTML = `
+      <div class="sale-top"><span>${v.obra} — ${v.tamano || (cat?.tamano ?? "")}</span><span>${fmtARS(v.precioFinal)}</span></div>
+      <div class="sale-meta">${v.vendedor} · ${v.medio} · ${v.clienteNombre || "sin nombre"} ${flag} ${v.synced ? '<span class="tag">sincronizado</span>' : ''}</div>
+    `;
+    list.appendChild(div);
+  });
+}
+
+function render(){ renderStock(); renderVentas(); }
+
+async function guardarVenta(){
+  const now = new Date();
+  const titulo = document.getElementById("obra").value;
+  const cat = catalogoPorTitulo(titulo);
+  const venta = {
+    fecha: now.toLocaleDateString("es-AR"),
+    hora: now.toLocaleTimeString("es-AR", {hour:"2-digit", minute:"2-digit"}),
+    vendedor: document.getElementById("vendedor").value,
+    obra: titulo,
+    tamano: cat ? cat.tamano : "",
+    edicion: document.getElementById("edicion").value,
+    precioFinal: Number(document.getElementById("precioFinal").value || 0),
+    medio: document.getElementById("medio").value,
+    clienteNombre: document.getElementById("clienteNombre").value,
+    clienteContacto: document.getElementById("clienteContacto").value,
+    clienteCuit: document.getElementById("clienteCuit").value || "Pendiente",
+    estado: document.getElementById("estado").value,
+    notas: document.getElementById("notas").value,
+    synced: false,
+  };
+  ventas.push(venta);
+  saveVentas();
+  render();
+  showToast("Venta guardada");
+  ["edicion","precioFinal","clienteNombre","clienteContacto","clienteCuit","notas"].forEach(id=>{
+    document.getElementById(id).value = "";
+  });
+  updatePriceHint();
+  if(accessToken){
+    sincronizarPendientes();
+  }
+}
+
+let ultimoExportPendientes = [];
+
+function exportarTSV(){
+  const pendientes = ventas.filter(v=>!v.synced);
+  if(pendientes.length === 0){ showToast("No hay ventas sin sincronizar"); return; }
+  const cols = ["fecha","hora","vendedor","obra","tamano","edicion","precioFinal","medio","clienteNombre","clienteContacto","clienteCuit","estado","notas"];
+  const lines = pendientes.map(v => cols.map(c => (v[c] ?? "")).join("\t"));
+  const tsv = lines.join("\n");
+  ultimoExportPendientes = pendientes;
+
+  // Intento con la API de portapapeles; si el sandbox del artifact la bloquea
+  // (permission denied / not allowed), caemos directo al panel manual.
+  const mostrarPanelManual = () => {
+    document.getElementById("exportBox").style.display = "block";
+    const ta = document.getElementById("exportTextarea");
+    ta.value = tsv;
+    ta.focus();
+    ta.select();
+    showToast("Portapapeles bloqueado — copiá el texto de abajo a mano");
+  };
+
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(tsv).then(()=>{
+      marcarComoSincronizadas(pendientes);
+      showToast(pendientes.length + " ventas copiadas — pegalas en la hoja Ventas");
+    }).catch(mostrarPanelManual);
+  } else {
+    mostrarPanelManual();
+  }
+}
+
+function marcarComoSincronizadas(pendientes){
+  pendientes.forEach(v => v.synced = true);
+  saveVentas();
+  render();
+  document.getElementById("exportBox").style.display = "none";
+}
+
+function borrarTodo(){
+  if(!confirm("¿Borrar todas las ventas cargadas en esta computadora? Esta acción no se puede deshacer. Hacé un backup antes si no estás seguro.")) return;
+  ventas = [];
+  saveVentas();
+  render();
+  showToast("Registro borrado");
+}
+
+function descargarBackup(){
+  const blob = new Blob([JSON.stringify(ventas, null, 2)], {type: "application/json"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  const stamp = new Date().toISOString().slice(0,16).replace(/[:T]/g, "-");
+  a.href = url;
+  a.download = `bada2026_backup_ventas_${stamp}.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showToast("Backup descargado");
+}
+
+function restaurarBackup(file){
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try{
+      const restauradas = JSON.parse(e.target.result);
+      if(!Array.isArray(restauradas)) throw new Error("formato inválido");
+      const accion = confirm(
+        `El backup tiene ${restauradas.length} ventas. Aceptar = REEMPLAZAR todo lo actual. Cancelar = FUSIONAR con lo que ya está cargado.`
+      );
+      if(accion){
+        ventas = restauradas;
+      } else {
+        ventas = ventas.concat(restauradas);
+      }
+      saveVentas();
+      render();
+      showToast("Backup restaurado");
+    }catch(err){
+      showToast("El archivo no es un backup válido");
+    }
+  };
+  reader.readAsText(file);
+}
+populateSelects();
+updatePriceHint();
+document.getElementById("obra").addEventListener("change", ()=>{
+  document.getElementById("precioFinal").value = "";
+  updatePriceHint();
+});
+document.getElementById("btnGuardar").addEventListener("click", guardarVenta);
+document.getElementById("btnExportar").addEventListener("click", exportarTSV);
+document.getElementById("btnBorrarTodo").addEventListener("click", borrarTodo);
+document.getElementById("btnSeleccionarTodo").addEventListener("click", ()=>{
+  const ta = document.getElementById("exportTextarea");
+  ta.focus();
+  ta.select();
+});
+document.getElementById("btnConfirmarCopiado").addEventListener("click", ()=>{
+  marcarComoSincronizadas(ultimoExportPendientes);
+  showToast("Marcadas como sincronizadas");
+});
+document.getElementById("btnDescargarBackup").addEventListener("click", descargarBackup);
+document.getElementById("btnRestaurarBackup").addEventListener("click", ()=>{
+  document.getElementById("inputRestaurar").click();
+});
+document.getElementById("inputRestaurar").addEventListener("change", (e)=>{
+  if(e.target.files[0]) restaurarBackup(e.target.files[0]);
+  e.target.value = "";
+});
+document.getElementById("btnConectar").addEventListener("click", ()=>{
+  if(!tokenClient){ showToast("Google todavía está cargando, esperá un segundo"); return; }
+  tokenClient.requestAccessToken({ prompt: accessToken ? "" : "consent" });
+});
+document.getElementById("btnSincronizar").addEventListener("click", sincronizarPendientes);
+initGoogleAuth();
+updateAuthUI();
+loadVentas();
+</script>
+
+</body>
+</html>
