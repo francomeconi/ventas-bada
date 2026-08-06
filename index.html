@@ -241,6 +241,7 @@
 const GOOGLE_CLIENT_ID = "679034443902-c8ppp5bjj939jgcn418a70nclls5bqhm.apps.googleusercontent.com";
 const SPREADSHEET_ID = "154_GMi3n4uX-PtnNByE6h466g5ch3dlHDZITZvClZt8";
 const SHEET_NAME = "Ventas";
+const SHEET_GID = 896148462; // gid de la pestaña "Ventas" — necesario para poder borrar filas puntuales
 const SHEET_RANGE = `${SHEET_NAME}!A:P`;
 
 let accessToken = null;
@@ -308,9 +309,13 @@ function updateAuthUI(){
 }
 
 function ventaToRow(v){
-  return [v.fecha, v.hora, v.vendedor, v.obra, v.tamano, v.edicion, "", v.precioFinal, "", v.medio, v.clienteNombre, v.clienteContacto, v.clienteCuit, v.estado, "", v.notas];
-  // Nota: dejamos vacías "Precio de lista" y "Diferencia" (columnas G e I) porque en el Sheet
-  // esas columnas tienen fórmulas propias que se autocompletan solas al escribir la fila.
+  const cat = catalogoPorTitulo(v.obra);
+  const precioLista = cat ? cat.precio : "";
+  const diferencia = (precioLista !== "" ) ? (v.precioFinal - precioLista) : "";
+  return [v.fecha, v.hora, v.vendedor, v.obra, v.tamano, v.edicion, precioLista, v.precioFinal, diferencia, v.medio, v.clienteNombre, v.clienteContacto, v.clienteCuit, v.estado, "", v.notas];
+  // Precio de lista y Diferencia se calculan acá mismo (no en el Sheet): las fórmulas que
+  // había precargado en la planilla solo cubren las primeras 300 filas armadas de antemano,
+  // y las filas que la API agrega al final quedan fuera de ese rango, así que llegaban vacías.
 }
 
 async function appendToSheet(pendientes){
@@ -341,6 +346,15 @@ async function appendToSheet(pendientes){
       }
       return false;
     }
+    const data = await res.json();
+    // updatedRange llega como "Ventas!A303:P308" — de ahí sacamos la fila inicial real
+    // y se la asignamos en orden a cada venta, para poder borrarla puntualmente después.
+    const rango = data?.updates?.updatedRange || "";
+    const match = rango.match(/![A-Z]+(\d+):/);
+    if(match){
+      const filaInicial = parseInt(match[1], 10);
+      pendientes.forEach((v, i) => { v.sheetRow = filaInicial + i; });
+    }
     return true;
   }catch(e){
     showToast("Sin conexión — se sincronizará más tarde");
@@ -366,7 +380,7 @@ const CATALOGO = {
     { titulo: "La Luna", tamano: "100x150", precio: 3000000, stock: 1, ediciones: 7, ubicacion: "18" },
     { titulo: "Laguna y Trífida", tamano: "60x40", precio: 600000, stock: 1, ediciones: 10, ubicacion: "1" },
     { titulo: "Corona Australis", tamano: "60x40", precio: 600000, stock: 1, ediciones: 10, ubicacion: "2" },
-    { titulo: "Cabeza de Caballo", tamano: "60x40", precio: 600000, stock: 1, ediciones: 10, ubicacion: "3" },
+    { titulo: "Flama y Cabeza de Caballo", tamano: "60x40", precio: 600000, stock: 1, ediciones: 10, ubicacion: "3" },
     { titulo: "Lambda Centauri", tamano: "60x40", precio: 600000, stock: 1, ediciones: 10, ubicacion: "4" },
     { titulo: "Rho Ofiuco", tamano: "60x40", precio: 600000, stock: 1, ediciones: 10, ubicacion: "5" },
     { titulo: "Gabriela Mistral", tamano: "60x40", precio: 600000, stock: 1, ediciones: 10, ubicacion: "6" },
@@ -386,7 +400,7 @@ const CATALOGO = {
     { titulo: "Pilares de la Creación", tamano: "30x30", precio: 120000, stock: 3, ediciones: 10, ubicacion: "21" },
     { titulo: "Trífida", tamano: "30x30", precio: 120000, stock: 3, ediciones: 10, ubicacion: "22" },
     { titulo: "Estatua de la Libertad", tamano: "30x30", precio: 120000, stock: 3, ediciones: 10, ubicacion: "23" },
-    { titulo: "EMC", tamano: "30x30", precio: 120000, stock: 3, ediciones: 10, ubicacion: "24" },
+    { titulo: "Sol — Eyección de Masa Coronal", tamano: "30x30", precio: 120000, stock: 3, ediciones: 10, ubicacion: "24" },
     { titulo: "Sol", tamano: "30x30", precio: 120000, stock: 5, ediciones: 10, ubicacion: "25" },
     { titulo: "Luna Llena", tamano: "30x30", precio: 120000, stock: 5, ediciones: 10, ubicacion: "26" },
     { titulo: "Galaxia del Escultor", tamano: "30x30", precio: 120000, stock: 3, ediciones: 10, ubicacion: "27" },
@@ -535,6 +549,7 @@ function renderStock(){
       const edicionAgotada = edicionRestante <= 0;
       const fisicoAgotado = fisicoRestante <= 0;
       const esUltimaUnidad = TAMANOS_TOMA_DIRECTA.includes(cat.tamano) && fisicoRestante === 1;
+      const pruebaCount = ventas.filter(v => v.obra === cat.titulo && v.prueba).length;
 
       let claseFila = "";
       if(edicionAgotada) claseFila = " stock-agotado";
@@ -544,7 +559,7 @@ function renderStock(){
       const div = document.createElement("div");
       div.className = "stock-row" + claseFila;
       div.innerHTML = `
-        <div class="stock-title">${cat.titulo} <span class="stock-tamano">(${cat.tamano})</span></div>
+        <div class="stock-title">${cat.titulo} <span class="stock-tamano">(${cat.tamano})</span>${pruebaCount > 0 ? ` <span class="flag tag-prueba">+${pruebaCount} de prueba (no descontado)</span>` : ''}</div>
         <div class="stock-nums">
           <span title="Ventas totales contra el límite de la edición">Vendidas: ${vendidos}/${cat.ediciones}${edicionAgotada ? " ⚠ edición agotada" : ""}</span>
           <span title="Copias físicas listas para entregar ahora en el stand" class="${esUltimaUnidad ? 'stock-num-alerta' : ''}">Físico p/entregar ya: ${fisicoRestante}${esUltimaUnidad ? " ⚠ última copia — ¿vender o guardar para exhibir?" : (!edicionAgotada && fisicoAgotado ? " ⚠ sin unidades a mano (solo encargo)" : "")}</span>
@@ -561,11 +576,9 @@ function renderItemVenta(v){
   const diff = v.precioFinal - (cat?.precio ?? v.precioFinal);
   const flag = diff < 0 ? '<span class="flag flag-warn">bajo lista</span>' : '<span class="flag flag-ok">ok</span>';
   const pruebaTag = v.prueba ? '<span class="flag tag-prueba">PRUEBA</span>' : '';
-  const acciones = (!v.synced) ? `
-    <div class="sale-item-actions">
-      <button class="btn-ghost" onclick="editarVenta('${v.id}')">✏️ Editar</button>
-      <button class="btn-danger" onclick="eliminarVenta('${v.id}')">🗑️ Eliminar</button>
-    </div>` : '';
+  const editarBtn = (!v.synced) ? `<button class="btn-ghost" onclick="editarVenta('${v.id}')">✏️ Editar</button>` : '';
+  const eliminarBtn = `<button class="btn-danger" onclick="eliminarVenta('${v.id}')">🗑️ Eliminar${v.synced ? ' del Sheet' : ''}</button>`;
+  const acciones = `<div class="sale-item-actions">${editarBtn}${eliminarBtn}</div>`;
   div.innerHTML = `
     <div class="sale-top"><span>${v.obra} — ${v.tamano || (cat?.tamano ?? "")}</span><span>${fmtARS(v.precioFinal)}</span></div>
     <div class="sale-meta">${v.fecha} ${v.hora} · ${v.vendedor} · ${v.medio} · ${v.clienteNombre || "sin nombre"} ${flag} ${pruebaTag} ${v.synced ? '<span class="tag">sincronizado</span>' : ''}</div>
@@ -791,9 +804,50 @@ function cancelarEdicion(){
   limpiarItemFormulario();
 }
 
-function eliminarVenta(id){
+async function eliminarFilaDeSheet(numeroFila){
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}:batchUpdate`;
+  const body = {
+    requests: [{
+      deleteDimension: {
+        range: { sheetId: SHEET_GID, dimension: "ROWS", startIndex: numeroFila - 1, endIndex: numeroFila }
+      }
+    }]
+  };
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Authorization": "Bearer " + accessToken, "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if(!res.ok){
+    const err = await res.text();
+    console.error(err);
+    return false;
+  }
+  // Al borrar una fila, todo lo que estaba más abajo se corre uno hacia arriba —
+  // ajustamos las filas guardadas de las demás ventas sincronizadas para que sigan apuntando bien.
+  ventas.forEach(v => {
+    if(v.synced && v.sheetRow && v.sheetRow > numeroFila) v.sheetRow -= 1;
+  });
+  return true;
+}
+
+async function eliminarVenta(id){
   const v = ventas.find(x => x.id === id);
-  if(!v || v.synced) return;
+  if(!v) return;
+
+  if(v.synced){
+    if(!accessToken){ showToast("Conectate con Google para poder borrar una venta ya sincronizada"); return; }
+    if(!v.sheetRow){ showToast("Esta venta se sincronizó antes de esta actualización y no tiene fila guardada — borrala a mano en el Sheet"); return; }
+    if(!confirm(`¿Eliminar DEL SHEET la venta de "${v.obra}" (${fmtARS(v.precioFinal)})? Esto borra la fila real en la planilla y no se puede deshacer.`)) return;
+    const ok = await eliminarFilaDeSheet(v.sheetRow);
+    if(!ok){ showToast("No se pudo borrar la fila en Sheets — probá de nuevo"); return; }
+    ventas = ventas.filter(x => x.id !== id);
+    saveVentas();
+    render();
+    showToast("Venta eliminada del Sheet");
+    return;
+  }
+
   if(!confirm(`¿Eliminar la venta de "${v.obra}" (${fmtARS(v.precioFinal)})? No se puede deshacer.`)) return;
   ventas = ventas.filter(x => x.id !== id);
   saveVentas();
